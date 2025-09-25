@@ -49,6 +49,8 @@ class LIOPipeline:
         extrinsic_lidar2base: np.ndarray | None = None,
         viz: bool = False,
         viz_every_n_frames: int = 20,
+        results_dir: Path | None = None,
+        log_deskewed_scans: bool = False
     ):
         """
         Parameters
@@ -63,6 +65,12 @@ class LIOPipeline:
         self.lio = LIO(config)
         self.extrinsic_imu2base = extrinsic_imu2base
         self.extrinsic_lidar2base = extrinsic_lidar2base
+
+        self.results_dir = results_dir
+        self.log_deskewed_scans = log_deskewed_scans
+        if self.log_deskewed_scans and self.results_dir is not None:
+            self.ply_dump_dir = self.results_dir / "ply_dump"
+
 
         # Each: dict with keys 'time', 'accel', 'gyro'
         self.imu_buffer: list[dict] = []
@@ -174,13 +182,13 @@ class LIOPipeline:
                 try:
                     if self.extrinsic_lidar2base is not None:
                         # TODO: rerun the deskewed scan as well, but there is some flickering in the viz for some reason
-                        self.lio.register_scan_with_extrinsic(
+                        deskewed_scan = self.lio.register_scan_with_extrinsic(
                             self.extrinsic_lidar2base,
                             frame["scan"],
                             frame["timestamps"],
                         )
                     else:
-                        self.lio.register_scan(
+                        deskewed_scan = self.lio.register_scan(
                             frame["scan"],
                             frame["timestamps"],
                         )
@@ -190,6 +198,14 @@ class LIOPipeline:
                         e,
                     )
                     continue
+
+                if self.log_deskewed_scans and self.results_dir is not None:
+                    save_deskewed_scan_as_ply(
+                        deskewed_scan,
+                        frame["end_time"],
+                        None,
+                        output_dir=self.ply_dump_dir
+                    )
 
             if self.viz:
                 with ScopedProfiler("Pipeline - Visualization") as viz_timer:
@@ -250,6 +266,13 @@ class LIOPipeline:
         """
         self.lio.dump_results_to_disk(results_dir, run_name)
 
+        if self.log_deskewed_scans and self.results_dir is not None:
+            global_map = self.lio.map_point_cloud()
+            save_deskewed_scan_as_ply(
+                        global_map, 0, None,
+                        output_dir=self.ply_dump_dir
+                    )
+
 
 viridis_ctrl = np.array(
     [
@@ -292,3 +315,39 @@ def height_colors_from_points(points: np.ndarray) -> np.ndarray:
     ).astype(np.uint8)
 
     return colors
+
+
+def save_deskewed_scan_as_ply(
+    deskewed_scan: np.ndarray,
+    end_time_seconds: float,
+    is_global: bool = False,
+    pose: np.ndarray | None = None,
+    output_dir: str | Path = "ply_dump",
+):
+    """
+    Transforms the deskewed_scan by pose, if provided. 
+    Then dumps it as PLY.
+    The filename is <int_nanoseconds>.ply based on end_time_seconds.
+    """
+    import open3d as o3d
+
+    if deskewed_scan is None or len(deskewed_scan) == 0:
+        return
+
+    Path(output_dir).mkdir(exist_ok=True, parents=True)
+
+    if is_global:
+        fname = Path(output_dir) / "global_map.ply"
+    else:
+        fname = Path(output_dir) / f"{int(end_time_seconds * 1e9)}.ply"
+
+    if pose is not None:
+        ones = np.ones((deskewed_scan.shape[0], 1), dtype=deskewed_scan.dtype)
+        pts_hom = np.hstack([deskewed_scan, ones])  # (N, 4)
+        pts_tr = (pose @ pts_hom.T).T[:, :3]  # (N, 3)
+    else:
+        pts_tr = deskewed_scan
+
+    pc_o3d = o3d.geometry.PointCloud()
+    pc_o3d.points = o3d.utility.Vector3dVector(pts_tr)
+    o3d.io.write_point_cloud(fname.as_posix(), pc_o3d)

@@ -215,6 +215,11 @@ def cli(
         is_eager=True,
         rich_help_panel="Auxilary commands",
     ),
+    dump_deskewed_scans: bool | None = typer.Option(
+        False,
+        "--dump_deskewed_scans",
+        help="Dump deskewed scans as PLY files in the results_dir. --log_results must be True. Deskewed scans will be timestamped with the end time of the scan.",
+    )
 ):
     """
     Run RKO_LIO with the selected dataloader and parameters.
@@ -295,6 +300,9 @@ def cli(
         extrinsic_imu2base=extrinsic_imu2base,
         extrinsic_lidar2base=extrinsic_lidar2base,
         viz=viz,
+        results_dir=results_dir,
+        log_deskewed_scans=log_results and results_dir and dump_deskewed_scans,
+        run_name=run_name or data_path.name
     )
 
     from tqdm import tqdm
