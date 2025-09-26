@@ -203,7 +203,8 @@ class LIOPipeline:
                     save_deskewed_scan_as_ply(
                         deskewed_scan,
                         frame["end_time"],
-                        None,
+                        is_global=True,
+                        pose=None,
                         output_dir=self.ply_dump_dir
                     )
 
