@@ -301,8 +301,7 @@ def cli(
         extrinsic_lidar2base=extrinsic_lidar2base,
         viz=viz,
         results_dir=results_dir,
-        log_deskewed_scans=log_results and results_dir and dump_deskewed_scans,
-        run_name=run_name or data_path.name
+        log_deskewed_scans=log_results and results_dir and dump_deskewed_scans
     )
 
     from tqdm import tqdm
