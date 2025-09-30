@@ -203,7 +203,7 @@ class LIOPipeline:
                     save_deskewed_scan_as_ply(
                         deskewed_scan,
                         frame["end_time"],
-                        is_global=True,
+                        is_global=False,
                         pose=None,
                         output_dir=self.ply_dump_dir
                     )
@@ -270,7 +270,7 @@ class LIOPipeline:
         if self.log_deskewed_scans and self.results_dir is not None:
             global_map = self.lio.map_point_cloud()
             save_deskewed_scan_as_ply(
-                        global_map, 0, None,
+                        global_map, 0, is_global=True, pose=None,
                         output_dir=self.ply_dump_dir
                     )
 
